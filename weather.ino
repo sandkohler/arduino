@@ -1,18 +1,18 @@
 #include <Arduino.h>
-#include <WiFiS3.h>          
+#include <WiFi.h>
 #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "wlan"; 
-const char* password = "pwd"; 
+const char* ssid = "iPhone von Sandro"; 
+const char* password = "0987654321"; 
 
 const char* apiKey = "e5c739b8d48e4398a54102549250704";
 const char* latitude = "59.254369155424335";
 const char* longitude = "18.082729726888548";
-const char* server = "api.weatherapi.com";
+const char* server = "api.weatherapi.com";  // Verwende HTTP statt HTTPS
 
 float temperatureCelsius = -100;
-WiFiSSLClient client;
+WiFiClient client;  // Verwende WiFiClient anstelle von WiFiSSLClient
 
 void setup() {
   Serial.begin(115200);
@@ -58,22 +58,22 @@ void loop() {
     Serial.print("Pfad: ");
     Serial.println(path);
     
-    HttpClient http(client, server, 443);
+    HttpClient http(client, server, 80);  // HTTP (Port 80)
     
     Serial.println("Sende HTTP-Anfrage...");
     http.get(path);
     
     int statusCode = http.responseStatusCode();
+    String responseBody = http.responseBody();
     Serial.print("HTTP-Statuscode: ");
     Serial.println(statusCode);
     
     if (statusCode == 200) {
-      String payload = http.responseBody();
       Serial.println("Empfangene Daten:");
-      Serial.println(payload);
+      Serial.println(responseBody);
       
       DynamicJsonDocument doc(2048);
-      DeserializationError error = deserializeJson(doc, payload);
+      DeserializationError error = deserializeJson(doc, responseBody);
       
       if (!error) {
         JsonObject current = doc["current"];
@@ -88,7 +88,7 @@ void loop() {
       }
     } else {
       Serial.print("HTTP Error: ");
-      Serial.println(statusCode);
+      Serial.println(responseBody);
     }
   } else {
     Serial.println("WiFi nicht verbunden, versuche erneut...");
