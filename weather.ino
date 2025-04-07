@@ -13,6 +13,8 @@ const char* longitude = "18.082729726888548";
 const char* server = "api.weatherapi.com";
 
 float temperatureCelsius = -100;
+float humidity = -1;
+float windKph = -1;
 WiFiClient client;
 ArduinoLEDMatrix matrix;
 
@@ -33,27 +35,24 @@ void setup() {
   
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nWiFi verbunden!");
-    Serial.print("IP-Adresse: ");
-    Serial.println(WiFi.localIP());
   } else {
     Serial.println("\nVerbindung fehlgeschlagen!");
-    showError("No WiFi");
+    scrollError("No WiFi");
   }
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
-    updateTemperature();
-    displayTemperature();
+    updateWeatherData();
+    scrollWeatherData();
   } else {
     Serial.println("WiFi nicht verbunden, versuche erneut...");
-    showError("No WiFi");
+    scrollError("No WiFi");
     WiFi.begin(ssid, password);
   }
-  delay(60000);
 }
 
-void updateTemperature() {
+void updateWeatherData() {
   String path = "/v1/current.json?key=";
   path += apiKey;
   path += "&q=";
@@ -73,43 +72,66 @@ void updateTemperature() {
     
     if (!error) {
       temperatureCelsius = doc["current"]["temp_c"];
-      Serial.print("Temperature: ");
-      Serial.print(temperatureCelsius);
-      Serial.println(" °C");
+      humidity = doc["current"]["humidity"];
+      windKph = doc["current"]["wind_kph"];
+      
+      Serial.print("Temperature: "); Serial.print(temperatureCelsius); Serial.println(" °C");
+      Serial.print("Humidity: "); Serial.print(humidity); Serial.println(" %");
+      Serial.print("Wind: "); Serial.print(windKph); Serial.println(" km/h");
     } else {
       Serial.print("JSON parsing error: ");
       Serial.println(error.c_str());
-      showError("JSON Err");
+      scrollError("JSON Err");
     }
   } else {
     Serial.print("HTTP Error: ");
     Serial.println(statusCode);
-    showError("HTTP Err");
+    scrollError("HTTP Err");
   }
 }
 
-void displayTemperature() {
-  matrix.beginDraw();
-  matrix.stroke(0xFFFFFFFF);
+void scrollWeatherData() {
+  char weatherStr[64];
+  char tempStr[6];
+  char humStr[6];
+  char windStr[6];
   
-  char tempStr[8];
-  dtostrf(temperatureCelsius, 5, 1, tempStr);
+  dtostrf(temperatureCelsius, 4, 1, tempStr);
+  dtostrf(humidity, 4, 1, humStr);
+  dtostrf(windKph, 4, 1, windStr);
   
-  matrix.textFont(Font_4x6);
-  matrix.beginText(0, 1, 0xFFFFFF);
-  matrix.print(tempStr);
-  matrix.print("C");
-  matrix.endText(NO_SCROLL);
-  
-  matrix.endDraw();
+  snprintf(weatherStr, sizeof(weatherStr), " T:%sC H:%s%% W:%skm/h ", 
+           tempStr, humStr, windStr);
+
+  while (true) {
+    matrix.beginDraw();
+    matrix.stroke(0xFFFFFFFF);
+    matrix.textScrollSpeed(100);
+    matrix.textFont(Font_4x6);
+    matrix.beginText(0, 1, 0xFFFFFF);
+    matrix.println(weatherStr);
+    matrix.endText(SCROLL_LEFT);
+    matrix.endDraw();
+    
+    int textLength = strlen(weatherStr) * 4;
+    int scrollTime = (textLength * 100) / 10;
+    delay(scrollTime);
+    
+    delay(1000);
+    
+    if (millis() > 1000) {
+      break;
+    }
+  }
 }
 
-void showError(const char* errorMsg) {
+void scrollError(const char* errorMsg) {
   matrix.beginDraw();
   matrix.stroke(0xFFFFFFFF);
+  matrix.textScrollSpeed(100);
   matrix.textFont(Font_4x6);
   matrix.beginText(0, 1, 0xFFFFFF);
-  matrix.print(errorMsg);
-  matrix.endText(NO_SCROLL);
+  matrix.println(errorMsg);
+  matrix.endText(SCROLL_LEFT);
   matrix.endDraw();
 }
