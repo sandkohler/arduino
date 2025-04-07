@@ -3,11 +3,8 @@
 #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "iPhone von Sandro"; 
-const char* password = "0987654321"; 
-
-// const char* ssid = "RIoT-5G"; 
-// const char* password = "ardiriaj"; 
+const char* ssid = "wlan"; 
+const char* password = "pwd"; 
 
 const char* apiKey = "e5c739b8d48e4398a54102549250704";
 const char* latitude = "59.254369155424335";
