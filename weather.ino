@@ -2,29 +2,29 @@
 #include <WiFi.h>
 #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
+#include <ArduinoGraphics.h>
+#include <Arduino_LED_Matrix.h>
 
 const char* ssid = "iPhone von Sandro"; 
 const char* password = "0987654321"; 
-
 const char* apiKey = "e5c739b8d48e4398a54102549250704";
 const char* latitude = "59.254369155424335";
 const char* longitude = "18.082729726888548";
-const char* server = "api.weatherapi.com";  // Verwende HTTP statt HTTPS
+const char* server = "api.weatherapi.com";
 
 float temperatureCelsius = -100;
-WiFiClient client;  // Verwende WiFiClient anstelle von WiFiSSLClient
+WiFiClient client;
+ArduinoLEDMatrix matrix;
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("Arduino Wetterdaten-Client");
+  matrix.begin();
   
   Serial.print("Verbinde mit WLAN: ");
   Serial.println(ssid);
-  
   WiFi.begin(ssid, password);
   
-  int timeout = 60; 
+  int timeout = 60;
   while (WiFi.status() != WL_CONNECTED && timeout > 0) {
     delay(500);
     Serial.print(".");
@@ -32,70 +32,84 @@ void setup() {
   }
   
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println();
-    Serial.println("WiFi verbunden!");
+    Serial.println("\nWiFi verbunden!");
     Serial.print("IP-Adresse: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println();
-    Serial.println("Verbindung fehlgeschlagen! Bitte überprüfen Sie SSID und Passwort.");
-    Serial.print("WLAN-Status: ");
-    Serial.println(WiFi.status());
+    Serial.println("\nVerbindung fehlgeschlagen!");
+    showError("No WiFi");
   }
 }
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Starte API-Anfrage...");
-    
-    String path = "/v1/current.json?key=";
-    path += apiKey;
-    path += "&q=";
-    path += latitude;
-    path += ",";
-    path += longitude;
-    
-    Serial.print("Pfad: ");
-    Serial.println(path);
-    
-    HttpClient http(client, server, 80);  // HTTP (Port 80)
-    
-    Serial.println("Sende HTTP-Anfrage...");
-    http.get(path);
-    
-    int statusCode = http.responseStatusCode();
-    String responseBody = http.responseBody();
-    Serial.print("HTTP-Statuscode: ");
-    Serial.println(statusCode);
-    
-    if (statusCode == 200) {
-      Serial.println("Empfangene Daten:");
-      Serial.println(responseBody);
-      
-      DynamicJsonDocument doc(2048);
-      DeserializationError error = deserializeJson(doc, responseBody);
-      
-      if (!error) {
-        JsonObject current = doc["current"];
-        temperatureCelsius = current["temp_c"];
-        
-        Serial.print("Temperature: ");
-        Serial.print(temperatureCelsius);
-        Serial.println(" °C");
-      } else {
-        Serial.print("JSON parsing error: ");
-        Serial.println(error.c_str());
-      }
-    } else {
-      Serial.print("HTTP Error: ");
-      Serial.println(responseBody);
-    }
+    updateTemperature();
+    displayTemperature();
   } else {
     Serial.println("WiFi nicht verbunden, versuche erneut...");
+    showError("No WiFi");
     WiFi.begin(ssid, password);
-    delay(5000);
   }
-  
-  Serial.println("Warte 60 Sekunden bis zur nächsten Messung...");
   delay(60000);
+}
+
+void updateTemperature() {
+  String path = "/v1/current.json?key=";
+  path += apiKey;
+  path += "&q=";
+  path += latitude;
+  path += ",";
+  path += longitude;
+  
+  HttpClient http(client, server, 80);
+  http.get(path);
+  
+  int statusCode = http.responseStatusCode();
+  String responseBody = http.responseBody();
+  
+  if (statusCode == 200) {
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, responseBody);
+    
+    if (!error) {
+      temperatureCelsius = doc["current"]["temp_c"];
+      Serial.print("Temperature: ");
+      Serial.print(temperatureCelsius);
+      Serial.println(" °C");
+    } else {
+      Serial.print("JSON parsing error: ");
+      Serial.println(error.c_str());
+      showError("JSON Err");
+    }
+  } else {
+    Serial.print("HTTP Error: ");
+    Serial.println(statusCode);
+    showError("HTTP Err");
+  }
+}
+
+void displayTemperature() {
+  matrix.beginDraw();
+  matrix.stroke(0xFFFFFFFF);
+  
+  char tempStr[8];
+  dtostrf(temperatureCelsius, 5, 1, tempStr);
+  
+  matrix.textFont(Font_4x6);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.print(tempStr);
+  matrix.print("C");
+  matrix.endText(NO_SCROLL);
+  
+  matrix.endDraw();
+}
+
+void showError(const char* errorMsg) {
+  matrix.beginDraw();
+  matrix.stroke(0xFFFFFFFF);
+  matrix.textFont(Font_4x6);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.print(errorMsg);
+  matrix.endText(NO_SCROLL);
+  matrix.endDraw();
 }
